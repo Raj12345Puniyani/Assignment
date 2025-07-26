@@ -1,0 +1,4 @@
+# Frontend requirements
+streamlit
+requests
+streamlit-chat

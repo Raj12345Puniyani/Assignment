@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database with pgvector extension
+  db:
+    image: pgvector/pgvector:0.8.0-pg15
+    container_name: rag_postgres
+    env_file:
+      - .env
+    ports:
+      - "5433:5432"  # Changed to use port 5433 on host
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql  # Initialize pgvector
+    networks:
+      - rag-network
+    environment:
+      - POSTGRES_USER=puniyani
+      - POSTGRES_PASSWORD=puniyani
+      - POSTGRES_DB=rag_system
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U puniyani -d rag_system"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend FastAPI Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag_backend
+    ports:
+      - "8003:8003"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://puniyani:puniyani@db:5432/rag_system
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434  # Adjust if Ollama runs differently
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__  # Exclude pycache from volume mount
+    networks:
+      - rag-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Frontend Streamlit Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag_frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_BASE_URL=http://backend:8002  # Internal Docker network communication
+    volumes:
+      - ./frontend:/app
+      - /app/__pycache__  # Exclude pycache from volume mount
+    networks:
+      - rag-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge

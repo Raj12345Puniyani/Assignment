@@ -1,0 +1,19 @@
+# Backend requirements
+fastapi
+uvicorn
+python-multipart
+sqlalchemy
+psycopg2-binary
+pgvector
+llama-index
+ollama
+python-dotenv
+pydantic
+langchain
+
+
+# Additional dependencies
+PyPDF2
+python-docx
+sentence-transformers
+chromadb
